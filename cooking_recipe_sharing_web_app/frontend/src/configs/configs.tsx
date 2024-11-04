@@ -7,4 +7,4 @@ export const appConfig = {
   title: "My Recipe Sharing App",
   iconFileName: "ch3_link.png",
 };
-export const API_URL = "http://ec2-3-88-39-231.compute-1.amazonaws.com";
+export const API_URL = "http://api.cloudspace-consulting.com";

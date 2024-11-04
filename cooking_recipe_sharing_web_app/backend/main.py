@@ -6,8 +6,6 @@ from typing import List
 import uuid
 import boto3
 
-dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('recipes')
 
 class Ingredient(BaseModel):
     id: int
@@ -23,9 +21,18 @@ class Recipe(BaseModel):
     ingredients: List[Ingredient]
     steps: List[Step]
 
+session = boto3.Session(
+
+       region_name='SELECTED_REGION'
+   )
+
+dynamodb = session.resource('dynamodb')
+table = dynamodb.Table('recipes') # This will be the name of our table
+
 # Configure CORS
 origins = [
     "*", 
+    
 ]
 
 app = FastAPI(title="Recipe Sharing API")
