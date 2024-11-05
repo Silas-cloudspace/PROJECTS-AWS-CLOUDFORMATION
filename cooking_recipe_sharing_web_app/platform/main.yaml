@@ -99,7 +99,7 @@ Resources:
       InstanceTenancy: default
       Tags:
         - Key: Name
-          Value: Chapter 3 VPC
+          Value: MyVPC
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
