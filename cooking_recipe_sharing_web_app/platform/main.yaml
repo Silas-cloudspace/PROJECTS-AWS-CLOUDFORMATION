@@ -20,7 +20,7 @@ Parameters:
   ALBCertificateArn:
     Type: String
     Description: The ARN of the SSL certificate for the Application Load Balancer
-    Default: # "The ARN of the SSL certificate for the Application Load Balancer"
+    Default: # "Inser the ARN of the SSL certificate for the Application Load Balancer"
 
   GitRepoURL:
     Type: String
@@ -45,6 +45,8 @@ Resources:
         TableName: recipes
 
 #ROLE
+  # IAM managed policy, which can be attached to IAM roles or users
+  # This policy grants permissions to interact with the "RecipesTable" (adding, scanning, and deleting items).
   EC2InstanceRolePolicy:
         Type: AWS::IAM::ManagedPolicy
         Properties:
@@ -59,6 +61,9 @@ Resources:
                 Resource:
                   - !GetAtt RecipesTable.Arn  
 
+  # Type: AWS::IAM::Role: This indicates that the resource being defined is an IAM role.
+  # It will be EC2 who will assume this role (ec2.amazonaws.com)
+  # By !Ref EC2InstanceRolePolicy, we define that the EC2 instances will assume the policy "EC2InstanceRolePolicy" created above
   EC2InstanceRole:
         Type: AWS::IAM::Role
         Properties:
@@ -74,7 +79,10 @@ Resources:
           ManagedPolicyArns:
             - !Ref EC2InstanceRolePolicy
             - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+  # Until now, we have a role that grants EC2 instances permissions to add, scan and delete items from the dynamodb table
 
+
+  # This will allow all EC2 instances associated with this profile to inherit the permissions granted by the role "EC2InstanceRole"
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -168,6 +176,7 @@ Resources:
         - Key: Name
           Value: Public Subnet 2
 
+  # Create the route table for associating the public subnets into it
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -176,6 +185,9 @@ Resources:
         - Key: Name
           Value: Public Route Table
 
+  # Create a route and associate the "PublicRouteTable" route table to it
+  # Will have the Internet Gateway as target and destination the internet (0.0.0.0/0)
+  # Now the PublicRouteTable will have access to the internet through the internet Gateway
   PublicRoute:
     Type: AWS::EC2::Route
     DependsOn: InternetGatewayAttachment
@@ -184,6 +196,8 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
 
+  # Associate the public subnets with the "PublicRouteTable"
+  # Which has now access to the internet through the internet Gateway
   PublicSubnetRouteTableAssociation1:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -197,6 +211,7 @@ Resources:
         RouteTableId: !Ref PublicRouteTable
 
 # NATGW
+# Create a NAT Gateway to enable outbound internet access for instances in private subnets
   NatGateway:
     Type: AWS::EC2::NatGateway
     Properties:
