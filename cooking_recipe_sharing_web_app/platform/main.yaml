@@ -20,7 +20,7 @@ Parameters:
   ALBCertificateArn:
     Type: String
     Description: The ARN of the SSL certificate for the Application Load Balancer
-    Default: # "Inser the ARN of the SSL certificate for the Application Load Balancer"
+    Default: # "Insert the ARN of the SSL certificate for the Application Load Balancer"
 
   GitRepoURL:
     Type: String
