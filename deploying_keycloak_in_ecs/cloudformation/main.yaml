@@ -70,9 +70,8 @@ Parameters:
   DBInstanceClass:
     Description: The database instance type
     Type: String
-    Default: db.t3.micro 
+    Default: db.t3.medium
     AllowedValues:
-      - db.t3.micro
       - db.t3.small
       - db.t3.medium
       - db.t3.large
@@ -90,7 +89,7 @@ Parameters:
   HostedZoneId:
     Description: The ID of the Route 53 Hosted Zone of the domain to create a certificate in ACM
     Type: String
-    Default: Z0386529NFUML87F5GPR
+    Default: Z0386529NFUML8ERU345
 
 #Condition to check if the HostedZoneId and DomainName parameters are provided to create a certificate in ACM.
 Conditions:
@@ -174,7 +173,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC 
       CidrBlock: !Ref ECSPrivateSubnet1CIDR
-      AvailabilityZone: !Select [ 0, !GetAzs '' ]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
       MapPublicIpOnLaunch: false 
       Tags:
         - Key: Name
@@ -187,7 +186,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC 
       CidrBlock: !Ref ECSPrivateSubnet2CIDR
-      AvailabilityZone: !Select [ 1, !GetAzs '' ]
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
       MapPublicIpOnLaunch: false 
       Tags:
         - Key: Name
@@ -200,7 +199,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC 
       CidrBlock: !Ref RDSPrivateSubnet1CIDR
-      AvailabilityZone: !Select [ 0, !GetAzs '' ]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
       MapPublicIpOnLaunch: false 
       Tags:
         - Key: Name
@@ -212,7 +211,7 @@ Resources:
     Type: AWS::EC2::Subnet 
     Properties:
       VpcId: !Ref VPC 
-      CidrBlock: !!Ref RDSPrivateSubnet2CIDR
+      CidrBlock: !Ref RDSPrivateSubnet2CIDR
       AvailabilityZone: !Select [ 1, !GetAZs '' ]
       MapPublicIpOnLaunch: false 
       Tags:
@@ -264,5 +263,245 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${ProjectName}-Nat-Gateway-AZ2
+
+  # RouteTable resource creates a route table for the VPC
+  # This route table will be associated with the public subnets to define the routing rules for the traffic.
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC 
+      Tags:
+       - Key: Name
+         Value: !Sub ${ProjectName}-Public-Route-Table
+
+  # PublicRoute resource creates a route in the route table to the internet gateway, allowing traffic to flow to the Internet.
+  # The DestinationCidrBlock is set to 0.0.0.0/0, which is the CIDR block that matches all IP addresses. 
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable 
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway 
+
+  # PublicSubnetRouteTableAssociation resource associates the public route table with the public subnets
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2 
+      RouteTableId: !Ref PublicRouteTable 
+
+  # PrivateRouteTable resource creates a route table for the VPC
+  # This route table will be associated with the ECSPrivateSubnet1 subnet to define the routing rules for the traffic.
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable 
+    Properties:
+      VpcId: !Ref VPC 
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-Private-Route-Table-AZ1
+
+  # PrivateRoute resource creates a route in the route table to the NAT Gateway, allowing traffic to flow from ECSPrivateSubnet1 to the Internet.
+  # This means that the tasks in ECSPrivateSubnet1 can access the Internet through the NAT Gateway.
+  PrivateRoute1:
+    Type: AWS::EC2::Route 
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1 
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1 
+
+  # PrivateSubnetRouteTableAssociation resource associates the private route table with ECSPrivateSubnet1 
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1 
+      SubnetId: !Ref ECSPrivateSubnet1 
+
+  # PrivateRouteTable resource creates a route table for the VPC
+  # This route table will be associated with the ECSPrivateSubnet2 subnet to define the routing rules for the traffic.
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable 
+    Properties:
+      VpcId: !Ref VPC 
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-Private-Route-Table-AZ2
+
+  # PrivateRoute resource creates a route in the route table to the NAT Gateway, allowing traffic to flow from ECSPrivateSubnet2 to the Internet.
+  # This means that the tasks in ECSPrivateSubnet2 can access the Internet through the NAT Gateway.
+  PrivateRoute2:
+    Type: AWS::EC2::Route 
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2 
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+
+  # PrivateSubnetRouteTableAssociation resource associates the private route table with ECSPrivateSubnet2
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+         RouteTableId: !Ref PrivateRouteTable2
+         SubnetId: !Ref ECSPrivateSubnet2
+
+  # ALB Security Groups creates a security group that allows all traffic from the internet
+  # This security group will be used by the Application Load Balancer to allow traffic on port 443 (HTTPS) from anywhere in the internet.
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB Security Group
+      VpcId: !Ref VPC 
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-ALB-Security-Group
+
+  # ECSSecurityGroup allows you to specify which traffic is allowed to reach the ECS tasks in the private subnets.
+  # This allows only the ALB to communicate with the ECS tasks on port 8080.
+  # This also allows the ALB to communicate with the ECS tasks on port 9000 for the Keycloak health check.
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "ECS Security Group"
+      VpcId: !Ref VPC 
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 8080
+        ToPort: 8080
+        SourceSecurityGroupId: !Ref ALBSecurityGroup
+      - IpProtocol: tcp
+        FromPort: 9000
+        ToPort: 9000
+        SourceSecurityGroupId: !Ref ALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-ECS-Security-Group
+
+  # RDSSecurityGroup allows you to specify which traffic is allowed to reach the RDS instance.
+  # This allows the ECS tasks to communicate with the RDS instance on port 5432.
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup 
+    Properties:
+      GroupDescription: Enable access to RDS instance
+      VpcId: !Ref VPC 
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-RDS-Security-Group
+
+  # DBSubnetGroup resource creates a DB subnet group for the RDS instance.
+  # This subnet group defines the subnets in which the RDS instance will be created.
+  # The RDS instance will be created in the private subnets in the two Availability Zones.
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for the RDS instance
+      SubnetIds:
+        - !Ref RDSPrivateSubnet1
+        - !Ref RDSPrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-DB-Subnet-Group"
+
+
+  # DBSecret resource creates a secret in AWS Secrets Manager that contains the database credentials.
+  # The database admin account username is passed as a parameter, and the password is generated by Secrets Manager.
+  DBSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${ProjectName}-DBSecret"
+      Description: "RDS instance credentials"
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"dbusername": "${DBUser}"}'
+        GenerateStringKey: "dbpassword"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/|\'
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-DBSecret"
+
+  # RDSInstance resource creates an RDS instance in the private subnets in the two Availability Zones.
+  # The RDS instance is a PostgreSQL database with Multi-AZ enabled for high availability and fault tolerance.
+  # The database admin account username and password are retrieved from the Secrets Manager secret.
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Ref DBInstanceIdentifier
+      DBName: !Ref DBName 
+      MasterUsername: !Join [ "", [ "{{resolve:secretsmanager:", !Ref DBSecret, ":SecretString:dbusername}}" ] ]
+      MasterUserPassword: !Join [ "", [ "{{resolve:secretsmanager:", !Ref DBSecret, ":SecretString:dbpassword}}" ] ]
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref DBAllocatedStorage
+      Engine: postgres
+      VPCSecurityGroups:
+        - !GetAtt RDSSecurityGroup.GroupId
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      MultiAZ: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-RDS-Instance
+
+  # KeycloakSecret resource creates a secret in AWS Secrets Manager that contains the Keycloak credentials.
+  # The Keycloak admin username is passed as a parameter, and the password is generated by Secrets Manager.
+  # This secret will be used by the Keycloak ECS task to retrieve the admin credentials.
+  KeycloakSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: KeycloakSecret
+      Description: "Keycloak credentials"
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"keycloakadminusername": "${KeycloakAdminUsername}"}'
+        GenerateStringKey: "keycloakadminpassword"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\'
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-Keycloak-Secret"
+    
+  # ACM Certificate resource requests a public certificate for the specified domain name.
+  # This certificate will be used by the Application Load Balancer to enable HTTPS traffic.
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: CreateCertificate
+    Properties:
+      DomainName: !Sub "www.${DomainName}"  
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub "www.${DomainName}" 
+          HostedZoneId: !Ref HostedZoneId 
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-Certificate"
+
+# Outputs section of the template allows you to define the outputs of the template that you want to be displayed after the stack is created.
+# In this template, we are outputting the endpoint of the RDS instance, the ARN of the database secret, and the ARN of the Keycloak secret.
+Outputs:
+  RDSInstanceEndpoint:
+    Description: The endpoint fo the RDS instance
+    Value: !GetAtt RDSInstance.Endpoint.Address
+  DBSecretArn:
+    Description: The ARN of the database secret
+    Value: !Ref DBSecret 
+  KeycloakSecretArn:
+    Description: The ARN of the Keycloak secret
+    Value: !Ref KeycloakSecret
+  CertificateARN:
+    Description: The ARN of the ACM certificate
+    Value: !Ref Certificate 
+
+
+
 
 
