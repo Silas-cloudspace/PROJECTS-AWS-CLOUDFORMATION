@@ -1,5 +1,5 @@
 # Create stack
-aws cloudformation create-stack --stack-name <stack name> --template-body file://<Virtualstudio file name>
+aws cloudformation create-stack --stack-name <stack name> --template-body file://<Virtualstudio file name> --capabilities CAPABILITY_IAM
 
 # Check if the stack is available
 aws cloudformation describe-stacks --stack-name <stack name> 
