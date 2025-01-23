@@ -1,5 +1,3 @@
-## LINK WITH THE STEPS TO COMPLETE THIS PROJECT: 
-
 
                       STEP BY STEP FLOW
 
