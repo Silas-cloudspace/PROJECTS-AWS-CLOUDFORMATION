@@ -20,7 +20,7 @@ Parameters:
   
   UserEmail:
     Type: String
-    Default: <insert your email here>
+    Default: <insert admin email here>
     Description: The email for the admin user
 
 Resources:
